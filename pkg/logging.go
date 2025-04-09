@@ -1,4 +1,4 @@
-package eventrix
+package pkg
 
 import "log"
 
