@@ -6,7 +6,11 @@ Built on top of [kafka-go](https://github.com/segmentio/kafka-go)
 Inspired by [Parallel consumer](https://github.com/confluentinc/parallel-consumer)
 
 # Problem
-The unit of parallelism in Kafka’s consumers is the partition but sometimes you want additional parallelism using threads per consumer instance rather than new instances of a Consumer
+In Kafka, the unit of parallelism is the partition — each partition is consumed by only one consumer within a group. If a topic has more partitions than consumer instances (e.g., 10 partitions and 2 consumers), each consumer handles multiple partitions.
+
+By default, each consumer processes messages sequentially per partition, which can become a bottleneck. When you need higher throughput but still want to preserve message order within each partition, you need a multi-threaded consumer that can process messages concurrently per partition
+
+kafka-go default behavior doesn't support multi-threaded message processing per consumer with partition-level ordering guarantees out of the box.
 
 # Features
 * Process messages concurrently while maintaining Kafka partition ordering guarantees
