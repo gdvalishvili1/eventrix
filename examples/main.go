@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"eventrix/pkg/eventrix"
+	"github.com/gdvalishvili1/eventrix"
 	"github.com/google/uuid"
 	"log"
 	"time"
