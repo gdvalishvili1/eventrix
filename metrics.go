@@ -1,4 +1,4 @@
-package pkg
+package eventrix
 
 type (
 	metricsCallback func(metric string, value float64, tags map[string]string)

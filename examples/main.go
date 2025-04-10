@@ -3,18 +3,18 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/gdvalishvili1/eventrix/pkg"
+	"github.com/gdvalishvili1/eventrix"
 	"github.com/google/uuid"
 	"log"
 	"time"
 )
 
 func main() {
-	consumer := pkg.NewConsumer(
+	consumer := eventrix.NewConsumer(
 		[]string{"localhost:29092"},
 		"test-app",
 		[]string{"accounts.topic"},
-		&pkg.ProcessingOptions{
+		&eventrix.ProcessingOptions{
 			HandlerTimeout:        10 * time.Second,
 			MaxConcurrentMessages: 50,
 			RetryBackoff:          []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second},
@@ -35,7 +35,7 @@ func NewBranchCreatedHandler() *UserRegisteredHandler {
 	return &UserRegisteredHandler{}
 }
 
-func (h *UserRegisteredHandler) Handle(ctx context.Context, key string, value []byte) (pkg.EventHandlerResult, error) {
+func (h *UserRegisteredHandler) Handle(ctx context.Context, key string, value []byte) (eventrix.EventHandlerResult, error) {
 	var event UserRegistered
 	if err := json.Unmarshal(value, &event); err != nil {
 		log.Printf("failed to unmarshal UserRegistered: %v", err)
@@ -44,7 +44,7 @@ func (h *UserRegisteredHandler) Handle(ctx context.Context, key string, value []
 
 	log.Printf("handling UserRegistered event: %+v", event)
 
-	return pkg.Success, nil
+	return eventrix.Success, nil
 }
 
 type UserRegistered struct {
