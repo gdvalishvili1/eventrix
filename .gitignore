@@ -23,3 +23,6 @@ go.work.sum
 
 # env file
 .env
+/.idea/eventrix.iml
+/.idea/vcs.xml
+/.idea/workspace.xml
