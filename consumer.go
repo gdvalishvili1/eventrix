@@ -57,6 +57,9 @@ func NewConsumer(brokers []string, groupID string, topics []string, options *Pro
 	if opts.CommitInterval <= 0 {
 		opts.CommitInterval = defaultOptions.CommitInterval
 	}
+	if opts.EventTypeSelector == nil {
+		opts.EventTypeSelector = defaultOptions.EventTypeSelector
+	}
 
 	consumer := &Consumer{
 		reader: kafka.NewReader(kafka.ReaderConfig{
@@ -291,13 +294,7 @@ func (c *Consumer) processPartition(ch <-chan kafka.Message, tp topicPartition) 
 func (c *Consumer) processMessage(ctx context.Context, msg kafka.Message) {
 	parentCtx := ctx
 
-	eventType := ""
-	for _, h := range msg.Headers {
-		if h.Key == "event-type" {
-			eventType = string(h.Value)
-			break
-		}
-	}
+	eventType := c.options.EventTypeSelector.Select(msg)
 
 	//TODO: make event type configurable by client code
 	if eventType == "" {

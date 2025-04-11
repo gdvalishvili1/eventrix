@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/gdvalishvili1/eventrix"
 	"github.com/google/uuid"
 	"log"
@@ -10,6 +11,25 @@ import (
 )
 
 func main() {
+	ctx := context.Background()
+	producer := NewKafkaProducer([]string{"localhost:29092"})
+
+	for i := 0; i < 10; i++ {
+		err := producer.Produce("accounts.topic", uuid.NewString(), UserRegistered{Name: "test"}, "UserRegistered")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Producing message %v\n", i)
+	}
+
+	println("waiting for producer...")
+
+	go startConsuming()
+
+	<-ctx.Done()
+}
+
+func startConsuming() {
 	consumer := eventrix.NewConsumer(
 		[]string{"localhost:29092"},
 		"test-app",
