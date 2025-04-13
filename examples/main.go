@@ -41,7 +41,7 @@ func startConsuming() {
 		},
 	)
 
-	consumer.RegisterHandler("UserRegistered", NewBranchCreatedHandler())
+	consumer.RegisterHandler("UserRegistered", NewUserRegisteredHandler())
 
 	if err := consumer.Start(context.Background()); err != nil {
 		println("Error starting consumer:", err)
@@ -51,7 +51,7 @@ func startConsuming() {
 type UserRegisteredHandler struct {
 }
 
-func NewBranchCreatedHandler() *UserRegisteredHandler {
+func NewUserRegisteredHandler() *UserRegisteredHandler {
 	return &UserRegisteredHandler{}
 }
 

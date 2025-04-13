@@ -69,6 +69,7 @@ func NewConsumer(brokers []string, groupID string, topics []string, options *Pro
 			MinBytes:       OneKB * 1,  //TODO: move to processing options to set by client
 			MaxBytes:       OneMB * 10, //TODO: move to processing options to set by client
 			CommitInterval: opts.CommitInterval,
+			MaxWait:        500 * time.Millisecond,
 		}),
 		handlers:            make(map[string]EventHandler),
 		options:             opts,
