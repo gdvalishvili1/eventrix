@@ -12,6 +12,7 @@ type ProcessingOptions struct {
 	LoggerCallback        loggerCallback    // Function for structured logging
 	ErrorCallback         errorCallback     // Function for error handling
 	EventTypeSelector     EventTypeSelector // Event type Selection strategy
+	EventTypeHeaderKey    string
 }
 
 var defaultOptions = ProcessingOptions{
@@ -20,4 +21,5 @@ var defaultOptions = ProcessingOptions{
 	RetryBackoff:          []time.Duration{time.Second, 5 * time.Second, 15 * time.Second},
 	CommitInterval:        5 * time.Second,
 	EventTypeSelector:     NewEventTypeHeaderSelector(),
+	EventTypeHeaderKey:    "event-type",
 }

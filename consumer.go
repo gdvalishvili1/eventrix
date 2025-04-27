@@ -2,12 +2,30 @@ package eventrix
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl"
+	"github.com/segmentio/kafka-go/sasl/plain"
+	"github.com/segmentio/kafka-go/sasl/scram"
 	"sync"
 	"time"
 )
+
+type AuthType int
+
+const (
+	AuthScramSha256 AuthType = iota
+	AuthScramSha512
+	AuthPlain
+)
+
+type AuthOptions struct {
+	Username string
+	Password string
+	AuthType AuthType
+}
 
 type topicPartition struct {
 	topic     string
@@ -40,8 +58,49 @@ type Consumer struct {
 	partitionLock       sync.RWMutex                          // Guards partition processors map
 }
 
+func buildDialer(authOptions *AuthOptions) (*kafka.Dialer, error) {
+	var dialer = &kafka.Dialer{
+		Timeout:   10 * time.Second,
+		DualStack: true,
+		TLS: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+
+	if authOptions != nil {
+		if authOptions.Username == "" {
+			return nil, errors.New("auth options must have a username")
+		}
+		if authOptions.Password == "" {
+			return nil, errors.New("auth options must have a password")
+		}
+
+		var mechanism sasl.Mechanism
+		var err error
+
+		switch authOptions.AuthType {
+		case AuthScramSha256:
+			mechanism, err = scram.Mechanism(scram.SHA256, authOptions.Username, authOptions.Password)
+		case AuthScramSha512:
+			mechanism, err = scram.Mechanism(scram.SHA512, authOptions.Username, authOptions.Password)
+		case AuthPlain:
+			mechanism = plain.Mechanism{Username: authOptions.Username, Password: authOptions.Password}
+		default:
+			return nil, fmt.Errorf("unsupported auth type: %v", authOptions.AuthType)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SASL mechanism: %w", err)
+		}
+
+		dialer.SASLMechanism = mechanism
+	}
+
+	return dialer, nil
+}
+
 // NewConsumer creates a new consumer
-func NewConsumer(brokers []string, groupID string, topics []string, options *ProcessingOptions) *Consumer {
+func NewConsumer(brokers []string, groupID string, topics []string, options *ProcessingOptions, authOptions *AuthOptions) (*Consumer, error) {
 	opts := defaultOptions
 	if options != nil {
 		opts = *options
@@ -60,6 +119,15 @@ func NewConsumer(brokers []string, groupID string, topics []string, options *Pro
 	if opts.EventTypeSelector == nil {
 		opts.EventTypeSelector = defaultOptions.EventTypeSelector
 	}
+	if opts.EventTypeHeaderKey == "" {
+		opts.EventTypeHeaderKey = defaultOptions.EventTypeHeaderKey
+	}
+
+	dialer, err := buildDialer(authOptions)
+
+	if err != nil {
+		return nil, err
+	}
 
 	consumer := &Consumer{
 		reader: kafka.NewReader(kafka.ReaderConfig{
@@ -70,6 +138,7 @@ func NewConsumer(brokers []string, groupID string, topics []string, options *Pro
 			MaxBytes:       OneMB * 10, //TODO: move to processing options to set by client
 			CommitInterval: opts.CommitInterval,
 			MaxWait:        500 * time.Millisecond,
+			Dialer:         dialer,
 		}),
 		handlers:            make(map[string]EventHandler),
 		options:             opts,
@@ -93,7 +162,7 @@ func NewConsumer(brokers []string, groupID string, topics []string, options *Pro
 		}
 	}
 
-	return consumer
+	return consumer, nil
 }
 
 // Start begins consuming messages from Kafka

@@ -30,7 +30,7 @@ func main() {
 }
 
 func startConsuming() {
-	consumer := eventrix.NewConsumer(
+	consumer, err := eventrix.NewConsumer(
 		[]string{"localhost:29092"},
 		"test-app",
 		[]string{"accounts.topic"},
@@ -39,7 +39,12 @@ func startConsuming() {
 			MaxConcurrentMessages: 50,
 			RetryBackoff:          []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second},
 		},
+		nil,
 	)
+
+	if err != nil {
+		panic(err)
+	}
 
 	consumer.RegisterHandler("UserRegistered", NewUserRegisteredHandler())
 
