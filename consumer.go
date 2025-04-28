@@ -33,8 +33,9 @@ type topicPartition struct {
 }
 
 const (
-	OneKB = 1024
-	OneMB = OneKB * 1024
+	OneByte = 1
+	OneKB   = 1024
+	OneMB   = OneKB * 1024
 )
 
 type Consumer struct {
@@ -42,7 +43,7 @@ type Consumer struct {
 	writer              *kafka.Writer // For dead letter queue
 	handlers            map[string]EventHandler
 	handlerLock         sync.RWMutex
-	options             ProcessingOptions
+	options             *ProcessingOptions
 	semaphore           chan struct{}                         // Limits concurrent message processing
 	wg                  sync.WaitGroup                        // Tracks in-flight messages
 	shutdownCh          chan struct{}                         // Signals shutdown
@@ -59,6 +60,10 @@ type Consumer struct {
 }
 
 func buildDialer(authOptions *AuthOptions) (*kafka.Dialer, error) {
+	if authOptions == nil {
+		return nil, nil
+	}
+
 	var dialer = &kafka.Dialer{
 		Timeout:   10 * time.Second,
 		DualStack: true,
@@ -67,61 +72,81 @@ func buildDialer(authOptions *AuthOptions) (*kafka.Dialer, error) {
 		},
 	}
 
-	if authOptions != nil {
-		if authOptions.Username == "" {
-			return nil, errors.New("auth options must have a username")
-		}
-		if authOptions.Password == "" {
-			return nil, errors.New("auth options must have a password")
-		}
-
-		var mechanism sasl.Mechanism
-		var err error
-
-		switch authOptions.AuthType {
-		case AuthScramSha256:
-			mechanism, err = scram.Mechanism(scram.SHA256, authOptions.Username, authOptions.Password)
-		case AuthScramSha512:
-			mechanism, err = scram.Mechanism(scram.SHA512, authOptions.Username, authOptions.Password)
-		case AuthPlain:
-			mechanism = plain.Mechanism{Username: authOptions.Username, Password: authOptions.Password}
-		default:
-			return nil, fmt.Errorf("unsupported auth type: %v", authOptions.AuthType)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to create SASL mechanism: %w", err)
-		}
-
-		dialer.SASLMechanism = mechanism
+	if authOptions.Username == "" {
+		return nil, errors.New("auth options must have a username")
+	}
+	if authOptions.Password == "" {
+		return nil, errors.New("auth options must have a password")
 	}
 
+	var mechanism sasl.Mechanism
+	var err error
+
+	switch authOptions.AuthType {
+	case AuthScramSha256:
+		mechanism, err = scram.Mechanism(scram.SHA256, authOptions.Username, authOptions.Password)
+	case AuthScramSha512:
+		mechanism, err = scram.Mechanism(scram.SHA512, authOptions.Username, authOptions.Password)
+	case AuthPlain:
+		mechanism = plain.Mechanism{Username: authOptions.Username, Password: authOptions.Password}
+	default:
+		return nil, fmt.Errorf("unsupported auth type: %v", authOptions.AuthType)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SASL mechanism: %w", err)
+	}
+
+	dialer.SASLMechanism = mechanism
+
 	return dialer, nil
+
+}
+
+func MergeProcessingOptions(custom *ProcessingOptions) *ProcessingOptions {
+	defaults := NewDefaultProcessingOptions()
+
+	if custom == nil {
+		return defaults
+	}
+
+	if custom.MaxConcurrentMessages <= 0 {
+		custom.MaxConcurrentMessages = defaults.MaxConcurrentMessages
+	}
+	if custom.HandlerTimeout <= 0 {
+		custom.HandlerTimeout = defaults.HandlerTimeout
+	}
+	if custom.CommitInterval <= 0 {
+		custom.CommitInterval = defaults.CommitInterval
+	}
+	if len(custom.RetryBackoff) == 0 {
+		custom.RetryBackoff = defaults.RetryBackoff
+	}
+
+	if custom.EventTypeHeaderKey == "" {
+		custom.EventTypeHeaderKey = defaults.EventTypeHeaderKey
+	}
+
+	if custom.EventTypeSelector == nil {
+		custom.EventTypeSelector = NewEventTypeHeaderSelector(custom.EventTypeHeaderKey)
+	}
+
+	if custom.MetricsCallback == nil {
+		custom.MetricsCallback = defaults.MetricsCallback
+	}
+	if custom.LoggerCallback == nil {
+		custom.LoggerCallback = defaults.LoggerCallback
+	}
+	if custom.ErrorCallback == nil {
+		custom.ErrorCallback = defaults.ErrorCallback
+	}
+
+	return custom
 }
 
 // NewConsumer creates a new consumer
 func NewConsumer(brokers []string, groupID string, topics []string, options *ProcessingOptions, authOptions *AuthOptions) (*Consumer, error) {
-	opts := defaultOptions
-	if options != nil {
-		opts = *options
-	}
-
-	// handle defaults if values are invalid
-	if opts.MaxConcurrentMessages <= 0 {
-		opts.MaxConcurrentMessages = defaultOptions.MaxConcurrentMessages
-	}
-	if opts.HandlerTimeout <= 0 {
-		opts.HandlerTimeout = defaultOptions.HandlerTimeout
-	}
-	if opts.CommitInterval <= 0 {
-		opts.CommitInterval = defaultOptions.CommitInterval
-	}
-	if opts.EventTypeSelector == nil {
-		opts.EventTypeSelector = defaultOptions.EventTypeSelector
-	}
-	if opts.EventTypeHeaderKey == "" {
-		opts.EventTypeHeaderKey = defaultOptions.EventTypeHeaderKey
-	}
+	opts := MergeProcessingOptions(options)
 
 	dialer, err := buildDialer(authOptions)
 
@@ -134,7 +159,7 @@ func NewConsumer(brokers []string, groupID string, topics []string, options *Pro
 			Brokers:        brokers,
 			GroupID:        groupID,
 			GroupTopics:    topics,
-			MinBytes:       OneKB * 1,  //TODO: move to processing options to set by client
+			MinBytes:       OneByte,    //TODO: move to processing options to set by client
 			MaxBytes:       OneMB * 10, //TODO: move to processing options to set by client
 			CommitInterval: opts.CommitInterval,
 			MaxWait:        500 * time.Millisecond,
@@ -199,7 +224,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 				// processing continues
 			}
 
-			readCtx, readCancel := context.WithTimeout(ctx, 2*time.Second)
+			readCtx, readCancel := context.WithTimeout(ctx, 30*time.Second)
 			m, err := c.reader.FetchMessage(readCtx)
 			readCancel()
 

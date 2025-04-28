@@ -15,11 +15,16 @@ type ProcessingOptions struct {
 	EventTypeHeaderKey    string
 }
 
-var defaultOptions = ProcessingOptions{
-	HandlerTimeout:        30 * time.Second,
-	MaxConcurrentMessages: 100,
-	RetryBackoff:          []time.Duration{time.Second, 5 * time.Second, 15 * time.Second},
-	CommitInterval:        5 * time.Second,
-	EventTypeSelector:     NewEventTypeHeaderSelector(),
-	EventTypeHeaderKey:    "event-type",
+func NewDefaultProcessingOptions() *ProcessingOptions {
+	defaultOptions := ProcessingOptions{
+		HandlerTimeout:        30 * time.Second,
+		MaxConcurrentMessages: 100,
+		RetryBackoff:          []time.Duration{time.Second, 5 * time.Second, 15 * time.Second},
+		CommitInterval:        5 * time.Second,
+		EventTypeHeaderKey:    "event-type",
+	}
+
+	defaultOptions.EventTypeSelector = NewEventTypeHeaderSelector(defaultOptions.EventTypeHeaderKey)
+
+	return &defaultOptions
 }

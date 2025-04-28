@@ -7,14 +7,17 @@ type EventTypeSelector interface {
 }
 
 type EventTypeHeaderSelector struct {
+	headerKey string
 }
 
-func NewEventTypeHeaderSelector() *EventTypeHeaderSelector { return &EventTypeHeaderSelector{} }
+func NewEventTypeHeaderSelector(headerKey string) *EventTypeHeaderSelector {
+	return &EventTypeHeaderSelector{headerKey: headerKey}
+}
 
-func (h *EventTypeHeaderSelector) Select(msg kafka.Message) string {
+func (s *EventTypeHeaderSelector) Select(msg kafka.Message) string {
 	var eventType string
 	for _, h := range msg.Headers {
-		if h.Key == "event-type" {
+		if h.Key == s.headerKey {
 			eventType = string(h.Value)
 			break
 		}
