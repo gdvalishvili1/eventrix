@@ -41,7 +41,7 @@ const (
 type Consumer struct {
 	reader              *kafka.Reader
 	writer              *kafka.Writer // For dead letter queue
-	handlers            map[string]EventHandler
+	handlers            map[string]EventHandlerFunc
 	handlerLock         sync.RWMutex
 	options             *ProcessingOptions
 	semaphore           chan struct{}                         // Limits concurrent message processing
@@ -165,7 +165,7 @@ func NewConsumer(brokers []string, groupID string, topics []string, options *Pro
 			MaxWait:        500 * time.Millisecond,
 			Dialer:         dialer,
 		}),
-		handlers:            make(map[string]EventHandler),
+		handlers:            make(map[string]EventHandlerFunc),
 		options:             opts,
 		semaphore:           make(chan struct{}, opts.MaxConcurrentMessages),
 		shutdownCh:          make(chan struct{}),
@@ -424,7 +424,7 @@ func (c *Consumer) processMessage(ctx context.Context, msg kafka.Message) {
 	c.processMessageWithRetries(parentCtx, msg, handler, eventType)
 }
 
-func (c *Consumer) processMessageWithRetries(ctx context.Context, msg kafka.Message, handler EventHandler, eventType string) {
+func (c *Consumer) processMessageWithRetries(ctx context.Context, msg kafka.Message, handler EventHandlerFunc, eventType string) {
 	key := string(msg.Key)
 	var err error
 	var result EventHandlerResult
@@ -446,7 +446,7 @@ func (c *Consumer) processMessageWithRetries(ctx context.Context, msg kafka.Mess
 	startTime := time.Now()
 
 	// Execute event handler
-	result, err = handler.Handle(handlerCtx, key, msg.Value)
+	result, err = handler(handlerCtx, key, msg.Value)
 
 	// Report metrics
 	duration := time.Since(startTime)

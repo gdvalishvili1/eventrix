@@ -11,12 +11,11 @@ const (
 	DeadLetterErr EventHandlerResult = "dead-letter"
 )
 
-type EventHandler interface {
-	Handle(ctx context.Context, key string, value []byte) (EventHandlerResult, error)
-}
+// EventHandlerFunc defines a function that processes a Kafka event message.
+type EventHandlerFunc func(ctx context.Context, key string, value []byte) (EventHandlerResult, error)
 
 // RegisterHandler registers a handler for a specific event type
-func (c *Consumer) RegisterHandler(eventType string, handler EventHandler) {
+func (c *Consumer) RegisterHandler(eventType string, handler EventHandlerFunc) {
 	c.handlerLock.Lock()
 	defer c.handlerLock.Unlock()
 	c.handlers[eventType] = handler

@@ -46,21 +46,22 @@ func startConsuming() {
 		panic(err)
 	}
 
-	consumer.RegisterHandler("UserRegistered", NewUserRegisteredHandler())
+	handler := NewUserEventHandler()
+	consumer.RegisterHandler("UserRegistered", handler.Register)
 
 	if err := consumer.Start(context.Background()); err != nil {
 		println("Error starting consumer:", err)
 	}
 }
 
-type UserRegisteredHandler struct {
+type UserEventHandler struct {
 }
 
-func NewUserRegisteredHandler() *UserRegisteredHandler {
-	return &UserRegisteredHandler{}
+func NewUserEventHandler() *UserEventHandler {
+	return &UserEventHandler{}
 }
 
-func (h *UserRegisteredHandler) Handle(ctx context.Context, key string, value []byte) (eventrix.EventHandlerResult, error) {
+func (h *UserEventHandler) Register(ctx context.Context, key string, value []byte) (eventrix.EventHandlerResult, error) {
 	var event UserRegistered
 	if err := json.Unmarshal(value, &event); err != nil {
 		log.Printf("failed to unmarshal UserRegistered: %v", err)
